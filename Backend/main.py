@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import inspect, text
 
 from database import Base, engine, SessionLocal
-from models import User, Post
+from models import User, Post ,Follow
 
 
 app = FastAPI(title="Vyntra API")
@@ -359,3 +359,109 @@ async def upload_media(
 
     finally:
         await file.close()
+
+    
+@app.get("/profile/{username}")
+def get_profile(username: str, viewer: str = ""):
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter(
+            User.username == username
+        ).first()
+
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        posts = db.query(Post).filter(
+            Post.username == username
+        ).order_by(Post.id.desc()).all()
+
+        followers_count = db.query(Follow).filter(
+            Follow.following_username == username
+        ).count()
+
+        following_count = db.query(Follow).filter(
+            Follow.follower_username == username
+        ).count()
+
+        is_following = False
+        if viewer and viewer != username:
+            is_following = db.query(Follow).filter(
+                Follow.follower_username == viewer,
+                Follow.following_username == username
+            ).first() is not None
+
+        return {
+            "username": user.username,
+            "posts_count": len(posts),
+            "followers_count": followers_count,
+            "following_count": following_count,
+            "is_following": is_following,
+            "posts": [
+                {
+                    "id": post.id,
+                    "username": post.username,
+                    "content": post.content or "",
+                    "media_url": post.media_url,
+                    "media_type": post.media_type
+                }
+                for post in posts
+            ]
+        }
+    finally:
+        db.close()
+
+
+@app.post("/follow/{username}")
+def follow_user(username: str, viewer: str):
+    db = SessionLocal()
+    try:
+        if viewer == username:
+            raise HTTPException(
+                status_code=400,
+                detail="You cannot follow yourself"
+            )
+
+        target = db.query(User).filter(
+            User.username == username
+        ).first()
+        follower = db.query(User).filter(
+            User.username == viewer
+        ).first()
+
+        if not target or not follower:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        existing = db.query(Follow).filter(
+            Follow.follower_username == viewer,
+            Follow.following_username == username
+        ).first()
+
+        if not existing:
+            db.add(Follow(
+                follower_username=viewer,
+                following_username=username
+            ))
+            db.commit()
+
+        return {"message": "Following", "is_following": True}
+    finally:
+        db.close()
+
+
+@app.delete("/follow/{username}")
+def unfollow_user(username: str, viewer: str):
+    db = SessionLocal()
+    try:
+        existing = db.query(Follow).filter(
+            Follow.follower_username == viewer,
+            Follow.following_username == username
+        ).first()
+
+        if existing:
+            db.delete(existing)
+            db.commit()
+
+        return {"message": "Unfollowed", "is_following": False}
+    finally:
+        db.close()
