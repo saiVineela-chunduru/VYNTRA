@@ -17,6 +17,8 @@ function App() {
   const [postText, setPostText] = useState("");
   const [posts, setPosts] = useState([]);
   const [likedPosts, setLikedPosts] = useState([]);
+  const [activeTab, setActiveTab] = useState("home");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const [selectedFile, setSelectedFile] = useState(null);
   const [mediaPreview, setMediaPreview] = useState("");
@@ -210,12 +212,14 @@ function App() {
         </header>
 
         <main className="feed">
-          <section className="welcome-card">
-            <h2>Welcome, {currentUser}!</h2>
-            <p>Share your moments with the Vyntra community.</p>
-          </section>
+          {activeTab === "home" && (
+            <section className="welcome-card">
+              <h2>Welcome, {currentUser}!</h2>
+              <p>Share your moments with the Vyntra community.</p>
+            </section>
+          )}
 
-          <section className="create-post">
+          {activeTab === "upload" && <section className="create-post">
             <h3>Create a post</h3>
 
             <form onSubmit={createPost}>
@@ -280,18 +284,39 @@ function App() {
             </form>
 
             {message && <p role="status">{message}</p>}
-          </section>
+          </section>}
 
+          {(activeTab === "home" || activeTab === "search" || activeTab === "reels") && (
           <section className="posts-section">
-            <h2>Home Feed</h2>
+            <h2>{activeTab === "search" ? "Search" : activeTab === "reels" ? "Reels" : "Home Feed"}</h2>
 
-            {posts.length === 0 ? (
-              <div className="empty-feed">
-                <h3>No posts yet</h3>
-                <p>Be the first to share something!</p>
-              </div>
-            ) : (
-              posts.map((post) => (
+            {activeTab === "search" && (
+              <input
+                className="search-input"
+                type="search"
+                placeholder="Search usernames or captions..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            )}
+
+            {(() => {
+              const visiblePosts = posts.filter((post) => {
+                if (activeTab === "reels") return post.media_type === "video" && post.media_url;
+                if (activeTab === "search") {
+                  const query = searchQuery.trim().toLowerCase();
+                  return !query || `${post.username || ""} ${post.content || ""}`.toLowerCase().includes(query);
+                }
+                return true;
+              });
+
+              return visiblePosts.length === 0 ? (
+                <div className="empty-feed">
+                  <h3>{activeTab === "reels" ? "No reels yet" : activeTab === "search" ? "No matching posts" : "No posts yet"}</h3>
+                  <p>{activeTab === "reels" ? "Video posts will appear here." : activeTab === "search" ? "Try another username or keyword." : "Be the first to share something!"}</p>
+                </div>
+              ) : (
+                visiblePosts.map((post) => (
                 <article className="post-card" key={post.id}>
                   <div className="post-header">
                     <div className="avatar">
@@ -334,10 +359,38 @@ function App() {
                       : "♡ Like"}
                   </button>
                 </article>
-              ))
-            )}
+                ))
+              );
+            })()}
           </section>
+          )}
+
+          {activeTab === "chat" && (
+            <section className="placeholder-screen">
+              <h2>Chat</h2>
+              <p>Messaging is not connected yet.</p>
+              <p>We can add real one-to-one chat after creating the messaging backend.</p>
+            </section>
+          )}
         </main>
+
+        <nav className="bottom-nav" aria-label="Main navigation">
+          <button className={activeTab === "home" ? "nav-item active" : "nav-item"} onClick={() => { setActiveTab("home"); setMessage(""); }} aria-label="Home">
+            <span className="nav-icon">⌂</span><span>Home</span>
+          </button>
+          <button className={activeTab === "search" ? "nav-item active" : "nav-item"} onClick={() => { setActiveTab("search"); setMessage(""); }} aria-label="Search">
+            <span className="nav-icon">⌕</span><span>Search</span>
+          </button>
+          <button className={activeTab === "chat" ? "nav-item active" : "nav-item"} onClick={() => { setActiveTab("chat"); setMessage(""); }} aria-label="Chat">
+            <span className="nav-icon">▢</span><span>Chat</span>
+          </button>
+          <button className={activeTab === "upload" ? "nav-item active" : "nav-item"} onClick={() => { setActiveTab("upload"); setMessage(""); }} aria-label="Upload">
+            <span className="nav-icon upload-icon">+</span><span>Upload</span>
+          </button>
+          <button className={activeTab === "reels" ? "nav-item active" : "nav-item"} onClick={() => { setActiveTab("reels"); setMessage(""); }} aria-label="Reels">
+            <span className="nav-icon">▷</span><span>Reels</span>
+          </button>
+        </nav>
 
         <footer>© 2026 Vyntra</footer>
       </div>
