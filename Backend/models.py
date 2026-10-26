@@ -16,5 +16,12 @@ class Post(Base):
     __tablename__ = "posts"
 
     id = Column(Integer, primary_key=True, index=True)
-    username = Column(String, ForeignKey("users.username"), nullable=False)
-    content = Column(String, nullable=False)
+    username = Column(
+        String,
+        ForeignKey("users.username"),
+        nullable=False
+    )
+    content = Column(String, nullable=False, default="")
+    media_url = Column(String, nullable=True)
+    media_type = Column(String, nullable=True)
+    public_id = Column(String, nullable=True)

@@ -18,10 +18,18 @@ function App() {
   const [posts, setPosts] = useState([]);
   const [likedPosts, setLikedPosts] = useState([]);
 
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [mediaPreview, setMediaPreview] = useState("");
+  const [uploading, setUploading] = useState(false);
+
   async function loadPosts() {
     try {
       const response = await fetch(`${API}/posts`);
-      if (!response.ok) throw new Error("Could not load posts");
+
+      if (!response.ok) {
+        throw new Error("Could not load posts");
+      }
+
       const data = await response.json();
       setPosts(data);
     } catch {
@@ -34,6 +42,18 @@ function App() {
       loadPosts();
     }
   }, [loggedIn]);
+
+  useEffect(() => {
+    if (!selectedFile) {
+      setMediaPreview("");
+      return;
+    }
+
+    const previewURL = URL.createObjectURL(selectedFile);
+    setMediaPreview(previewURL);
+
+    return () => URL.revokeObjectURL(previewURL);
+  }, [selectedFile]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -56,7 +76,9 @@ function App() {
 
       const response = await fetch(`${API}${endpoint}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify(requestData),
       });
 
@@ -94,35 +116,62 @@ function App() {
   async function createPost(e) {
     e.preventDefault();
 
-    if (!postText.trim()) return;
+    if (!postText.trim() && !selectedFile) {
+      setMessage("Text or an image/video select cheyyi.");
+      return;
+    }
 
     setLoading(true);
     setMessage("");
 
     try {
-      const response = await fetch(`${API}/posts`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          username: currentUser,
-          content: postText.trim(),
-        }),
-      });
+      if (selectedFile) {
+        setUploading(true);
 
-      const data = await response.json();
+        const formData = new FormData();
+        formData.append("username", currentUser);
+        formData.append("file", selectedFile);
+        formData.append("content", postText.trim());
 
-      if (!response.ok) {
-        setMessage(data.detail || "Post creation failed.");
-        return;
+        const response = await fetch(`${API}/upload`, {
+          method: "POST",
+          body: formData,
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.detail || "Media upload failed.");
+        }
+      } else {
+        const response = await fetch(`${API}/posts`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            username: currentUser,
+            content: postText.trim(),
+          }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.detail || "Post creation failed.");
+        }
       }
 
-      setPostText("");
       await loadPosts();
+
+      setPostText("");
+      setSelectedFile(null);
       setMessage("Post shared successfully!");
-    } catch {
-      setMessage("Post share avvaledu. Backend check cheyyi.");
+    } catch (error) {
+      setMessage(error.message || "Post share avvaledu.");
     } finally {
       setLoading(false);
+      setUploading(false);
     }
   }
 
@@ -139,6 +188,10 @@ function App() {
     setCurrentUser("");
     setMessage("");
     setIsSignup(false);
+    setSelectedFile(null);
+    setPostText("");
+    setPosts([]);
+    setLikedPosts([]);
   }
 
   if (loggedIn) {
@@ -146,8 +199,10 @@ function App() {
       <div className="home-page">
         <header className="topbar">
           <h1 className="logo">Vyntra</h1>
+
           <div className="topbar-right">
             <span>@{currentUser}</span>
+
             <button onClick={logout} className="logout-button">
               Log out
             </button>
@@ -162,18 +217,68 @@ function App() {
 
           <section className="create-post">
             <h3>Create a post</h3>
+
             <form onSubmit={createPost}>
               <textarea
                 placeholder="What's on your mind?"
                 value={postText}
                 onChange={(e) => setPostText(e.target.value)}
                 rows={4}
-                required
               />
+
+              <label htmlFor="media-file">
+                Choose image or video
+              </label>
+
+              <input
+                id="media-file"
+                type="file"
+                accept="image/*,video/*"
+                onChange={(e) => {
+                  const file = e.target.files?.[0] || null;
+                  setSelectedFile(file);
+                  setMessage("");
+                }}
+              />
+
+              {mediaPreview && selectedFile && (
+                <div className="media-preview">
+                  {selectedFile.type.startsWith("video/") ? (
+                    <video
+                      src={mediaPreview}
+                      controls
+                      className="post-media"
+                    />
+                  ) : (
+                    <img
+                      src={mediaPreview}
+                      alt="Selected media preview"
+                      className="post-media"
+                    />
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedFile(null);
+                      const input = document.getElementById("media-file");
+                      if (input) input.value = "";
+                    }}
+                  >
+                    Remove media
+                  </button>
+                </div>
+              )}
+
               <button type="submit" disabled={loading}>
-                {loading ? "Please wait..." : "Share post"}
+                {uploading
+                  ? "Uploading media..."
+                  : loading
+                    ? "Please wait..."
+                    : "Share post"}
               </button>
             </form>
+
             {message && <p role="status">{message}</p>}
           </section>
 
@@ -190,20 +295,43 @@ function App() {
                 <article className="post-card" key={post.id}>
                   <div className="post-header">
                     <div className="avatar">
-                      {post.username.charAt(0).toUpperCase()}
+                      {post.username?.charAt(0).toUpperCase() || "U"}
                     </div>
+
                     <div>
                       <strong>{post.username}</strong>
                     </div>
                   </div>
 
-                  <p className="post-content">{post.content}</p>
+                  {post.content && (
+                    <p className="post-content">{post.content}</p>
+                  )}
+
+                  {post.media_url && (
+                    <div className="post-media-container">
+                      {post.media_type === "video" ? (
+                        <video
+                          src={post.media_url}
+                          controls
+                          className="post-media"
+                        />
+                      ) : (
+                        <img
+                          src={post.media_url}
+                          alt={`Post by ${post.username}`}
+                          className="post-media"
+                        />
+                      )}
+                    </div>
+                  )}
 
                   <button
                     className="like-button"
                     onClick={() => toggleLike(post.id)}
                   >
-                    {likedPosts.includes(post.id) ? "❤️ Liked" : "♡ Like"}
+                    {likedPosts.includes(post.id)
+                      ? "❤️ Liked"
+                      : "♡ Like"}
                   </button>
                 </article>
               ))
@@ -255,7 +383,11 @@ function App() {
           />
 
           <button type="submit" disabled={loading}>
-            {loading ? "Please wait..." : isSignup ? "Sign up" : "Log in"}
+            {loading
+              ? "Please wait..."
+              : isSignup
+                ? "Sign up"
+                : "Log in"}
           </button>
         </form>
 
@@ -264,13 +396,20 @@ function App() {
         {!isSignup && (
           <>
             <p className="forgot">Forgot password?</p>
-            <div className="divider"><span>OR</span></div>
+
+            <div className="divider">
+              <span>OR</span>
+            </div>
+
             <p className="facebook">Log in with Facebook</p>
           </>
         )}
 
         <div className="signup">
-          {isSignup ? "Have an account? " : "Don't have an account? "}
+          {isSignup
+            ? "Have an account? "
+            : "Don't have an account? "}
+
           <a
             href="#"
             onClick={(e) => {

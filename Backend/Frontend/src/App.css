@@ -576,3 +576,29 @@ footer {
     padding: 17px;
   }
 }
+.media-preview {
+  margin: 12px 0;
+}
+
+.post-media-container {
+  margin-top: 12px;
+}
+
+.post-media {
+  display: block;
+  width: 100%;
+  max-height: 500px;
+  object-fit: contain;
+  border-radius: 10px;
+  background: #f5f5f5;
+}
+
+.media-preview button {
+  margin-top: 8px;
+}
+
+.create-post input[type="file"] {
+  display: block;
+  width: 100%;
+  margin: 12px 0;
+}
