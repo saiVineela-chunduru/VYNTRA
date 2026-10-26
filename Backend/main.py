@@ -11,9 +11,10 @@ from models import User, Post
 app = FastAPI(title="Vyntra API")
 
 Base.metadata.create_all(bind=engine)
+
 password_hash = PasswordHash.recommended()
 
-# Allow both Vite frontend ports
+# Allow local development and deployed Vercel frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -21,6 +22,7 @@ app.add_middleware(
         "http://localhost:5175",
         "http://127.0.0.1:5173",
         "http://127.0.0.1:5175",
+        "https://vyntra-ebon.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -57,6 +59,7 @@ def health_check():
 @app.post("/signup")
 def signup(user: UserSignup):
     db: Session = SessionLocal()
+
     try:
         existing_user = db.query(User).filter(
             (User.username == user.username)
@@ -78,7 +81,10 @@ def signup(user: UserSignup):
         db.add(new_user)
         db.commit()
 
-        return {"message": "Account created successfully!"}
+        return {
+            "message": "Account created successfully!"
+        }
+
     finally:
         db.close()
 
@@ -86,6 +92,7 @@ def signup(user: UserSignup):
 @app.post("/login")
 def login(user: UserLogin):
     db: Session = SessionLocal()
+
     try:
         existing_user = db.query(User).filter(
             User.username == user.username
@@ -104,6 +111,7 @@ def login(user: UserLogin):
             "message": "Login successful!",
             "username": existing_user.username
         }
+
     finally:
         db.close()
 
@@ -111,6 +119,7 @@ def login(user: UserLogin):
 @app.post("/posts")
 def create_post(post: PostCreate):
     db: Session = SessionLocal()
+
     try:
         user = db.query(User).filter(
             User.username == post.username
@@ -143,6 +152,7 @@ def create_post(post: PostCreate):
             "content": new_post.content,
             "message": "Post created successfully!"
         }
+
     finally:
         db.close()
 
@@ -150,6 +160,7 @@ def create_post(post: PostCreate):
 @app.get("/posts")
 def get_posts():
     db: Session = SessionLocal()
+
     try:
         posts = db.query(Post).order_by(
             Post.id.desc()
@@ -163,5 +174,6 @@ def get_posts():
             }
             for post in posts
         ]
+
     finally:
         db.close()
